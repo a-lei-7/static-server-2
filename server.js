@@ -22,6 +22,7 @@ var server = http.createServer(function(request, response) {
   /******** 从这里开始看，上面不要看 ************/
 
   console.log("有个傻子发请求过来啦！路径（带查询参数）为：" + pathWithQuery);
+  const session = JSON.parse(fs.readFileSync("./session.json").toString());
   if (path === "/sign_in" && method === "POST") {
     response.setHeader("Content-Type", "text/html;charset=utf-8");
     //读数据库
@@ -43,25 +44,29 @@ var server = http.createServer(function(request, response) {
         response.end(`{"errorCode": 4001}`);
       } else {
         response.statusCode = 200;
+        const random = Math.random;
+
+        //添加 Cookie
         response.setHeader("Set-Cookie", `user_id=${user.id}; HttpOnly`);
         response.end();
       }
     });
   } else if (path === "/home.html") {
     const cookie = request.headers["cookie"];
-    let user_id;
+    let session_id;
     try {
-      userId = cookie
+      sessionId = cookie
         .split(";")
-        .filter(s => s.indexOf("user_id=") >= 0)[0]
+        .filter(s => s.indexOf("session_id=") >= 0)[0]
         .split("=")[1];
     } catch (error) {}
-    if (userId) {
+    if (sessionId && session[sessionId]) {
+      const userId = session[sessionId].user_id;
       const userArray = JSON.parse(fs.readFileSync("./db/users.json"));
-      const user = userArray.find(user => user.id.toString() === userId);
+      const user = userArray.find(user => user.id === userId);
       userArray.find(user.id, toString() === userId);
       const homeHtml = fs.readFileSync("./public/home.html").toString();
-      let string;
+      let string = "";
       if (user) {
         const string = homeHtml
           .replace("{{loginStatus}}", "已登录")
@@ -81,16 +86,20 @@ var server = http.createServer(function(request, response) {
     }
   } else if (path === "/register" && method === "POST") {
     response.setHeader("Content-Type", "text/html;charset=utf-8");
-    //读数据库
+
+    //读数据库 先用 fs.readFileSync 读取到 JSON ，然后用 JSON.parse将其转化为对象
     const userArray = JSON.parse(fs.readFileSync("./db/users.json"));
 
     const array = [];
+
+    //监听 请求的 数据上传事件
     request.on("data", chunk => {
       array.push(chunk);
     });
+    //结束时，将数组写入数据库
     request.on("end", () => {
-      const string = Buffer.concat(array).toString();
-      const obj = JSON.parse(string);
+      const string = Buffer.concat(array).toString(); // Buffer 可将不同数据合为字符串
+      const obj = JSON.parse(string); // 将字符串变为对象
       const lastUser = userArray[userArray.length - 1];
       const newUser = {
         // id 为最后一个用户的 id + 1
